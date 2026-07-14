@@ -237,10 +237,10 @@ if __name__ == "__main__":
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--bench", action="store_true")
     ap.add_argument("--batches", type=int, nargs="+",
-                    default=[1, 8, 32, 128, 256])
+                    default=[1, 2, 4, 8, 16, 32, 64, 128, 256])
     ap.add_argument("--contexts", type=int, nargs="+",
                     default=[1024, 8192, 32768, 131072])
-    ap.add_argument("--qlens", type=int, nargs="+", default=[1])
+    ap.add_argument("--qlens", type=int, nargs="+", default=[1, 2, 3, 4])
     args = ap.parse_args()
     if not args.check and not args.bench:
         args.check = True

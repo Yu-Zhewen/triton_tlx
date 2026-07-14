@@ -1,8 +1,8 @@
 """Correctness + benchmark harness for the TLX paged-attention decode kernel.
 
 Usage (inside the tlxbuild container, from a neutral dir):
-    python3 bench_pa_decode.py --check          # correctness on small shapes
-    python3 bench_pa_decode.py --bench           # perf sweep
+    python3 bench_amd_pa_decode.py --check      # correctness on small shapes
+    python3 bench_amd_pa_decode.py --bench       # perf sweep
 """
 
 import argparse
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     ap.add_argument("--bench", action="store_true")
     ap.add_argument("--batches", type=int, nargs="+", default=[1, 2, 4, 8, 16, 32, 64, 128, 256])
     ap.add_argument("--contexts", type=int, nargs="+", default=[1024, 8192, 32768, 131072])
-    ap.add_argument("--qlens", type=int, nargs="+", default=[1, 2, 4])
+    ap.add_argument("--qlens", type=int, nargs="+", default=[1, 2, 3, 4])
     args = ap.parse_args()
 
     if not args.check and not args.bench:
