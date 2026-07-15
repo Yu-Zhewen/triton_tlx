@@ -70,7 +70,7 @@ def _pa_decode_partition_kernel(
     offs_p = tl.arange(0, PAGE_SIZE)
     offs_m = tl.arange(0, M_POW2)
 
-    # ---- Load Q for this (seq, kv_head): [QLEN_POW2, GROUP_POW2, HEAD_DIM] ----
+    # Load Q for this (seq, kv_head): [QLEN_POW2, GROUP_POW2, HEAD_DIM].
     q_head = kv_head * QUERY_GROUP_SIZE + offs_g          # [GROUP_POW2]
     q_tok = seq * QLEN + offs_ql                          # [QLEN_POW2]
     q_ptrs = (
@@ -126,7 +126,7 @@ def _pa_decode_partition_kernel(
         m_i = m_new
         tl.debug_barrier()
 
-    # ---- store normalized partial output + base-2 lse for this split ----
+    # Store the normalized partial output + base-2 lse for this split.
     has_kv = l_i > 0.0
     o_part = tl.where(has_kv[:, None], acc / tl.where(has_kv[:, None], l_i[:, None], 1.0), 0.0)
     lse_part = tl.where(has_kv, m_i + tl.math.log2(tl.where(has_kv, l_i, 1.0)), float("-inf"))
@@ -265,10 +265,9 @@ def pa_decode_tlx(
     return output
 
 
-# -----------------------------------------------------------------------------
-# Test/benchmark helpers (paged inputs + dense fp32 reference), shared by the
-# correctness suite and the perf harness.
-# -----------------------------------------------------------------------------
+# Test/benchmark helpers: paged inputs + a dense fp32 reference, consumed by the
+# correctness suite (test_correctness.py) and the perf harness
+# (test_amd_pa_decode_perf.py).
 def build_inputs(num_seqs, ctx_lens, num_q_heads, num_kv_heads, head_dim, page_size,
                  query_length=1, dtype=torch.bfloat16, device="cuda", seed=0,
                  pool_pages=None):
