@@ -263,3 +263,66 @@ def pa_decode_tlx(
         QLEN=query_length, SPLITS_POW2=splits_pow2,
     )
     return output
+
+
+# -----------------------------------------------------------------------------
+# Test/benchmark helpers (paged inputs + dense fp32 reference), shared by the
+# correctness suite and the perf harness.
+# -----------------------------------------------------------------------------
+def build_inputs(num_seqs, ctx_lens, num_q_heads, num_kv_heads, head_dim, page_size,
+                 query_length=1, dtype=torch.bfloat16, device="cuda", seed=0,
+                 pool_pages=None):
+    """Build paged decode inputs. If ``pool_pages`` is set, physical pages are
+    drawn from a shared pool of that size (bounds memory for large sweeps); the
+    dense reference uses the same ``block_tables`` so correctness is unaffected.
+    """
+    torch.manual_seed(seed)
+    assert len(ctx_lens) == num_seqs
+    num_tokens = num_seqs * query_length
+
+    query = torch.randn(num_tokens, num_q_heads, head_dim, dtype=dtype, device=device) * 0.2
+
+    max_pages = (max(ctx_lens) + page_size - 1) // page_size
+    distinct = num_seqs * max_pages
+    total_pages = distinct if pool_pages is None else min(distinct, pool_pages)
+    key_cache = torch.randn(total_pages, num_kv_heads, page_size, head_dim, dtype=dtype, device=device) * 0.2
+    value_cache = torch.randn(total_pages, num_kv_heads, page_size, head_dim, dtype=dtype, device=device) * 0.2
+
+    block_tables = torch.zeros(num_seqs, max_pages, dtype=torch.int32, device=device)
+    for s in range(num_seqs):
+        npag = (ctx_lens[s] + page_size - 1) // page_size
+        for p in range(max_pages):
+            phys = (s * max_pages + (p if p < npag else 0)) % total_pages
+            block_tables[s, p] = phys
+    context_lens = torch.tensor(ctx_lens, dtype=torch.int32, device=device)
+    return query, key_cache, value_cache, context_lens, block_tables
+
+
+def ref_decode(query, key_cache, value_cache, context_lens, block_tables, sm_scale,
+               num_q_heads, num_kv_heads, query_length):
+    """Dense fp32 reference: gather full K/V from the page table, causal over qlen."""
+    head_dim = query.shape[-1]
+    page_size = key_cache.shape[2]
+    group = num_q_heads // num_kv_heads
+    num_seqs = query.shape[0] // query_length
+    out = torch.empty_like(query, dtype=torch.float32)
+
+    for s in range(num_seqs):
+        ctx = int(context_lens[s].item())
+        npag = (ctx + page_size - 1) // page_size
+        phys = block_tables[s, :npag]
+        k = key_cache[phys].to(torch.float32)      # [npag, kvh, page, d]
+        v = value_cache[phys].to(torch.float32)
+        k = k.permute(1, 0, 2, 3).reshape(num_kv_heads, npag * page_size, head_dim)[:, :ctx]
+        v = v.permute(1, 0, 2, 3).reshape(num_kv_heads, npag * page_size, head_dim)[:, :ctx]
+        for qpos in range(query_length):
+            gt = s * query_length + qpos
+            limit = ctx - query_length + qpos       # inclusive last visible key index
+            for qh in range(num_q_heads):
+                kvh = qh // group
+                q = query[gt, qh].to(torch.float32)         # [d]
+                scores = (q[None, :] * k[kvh]).sum(-1) * sm_scale  # [ctx]
+                scores = scores[: limit + 1]
+                p = torch.softmax(scores, dim=0)
+                out[gt, qh] = (p[:, None] * v[kvh, : limit + 1]).sum(0)
+    return out

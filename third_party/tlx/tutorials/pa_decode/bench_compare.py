@@ -13,14 +13,17 @@ Usage (inside tlxbuild container, from this dir, with pa_decode_gluon.py present
 """
 
 import argparse
+import os
 import sys
 import types as _types
 
 import torch
 import triton
 
-from amd_pa_decode import pa_decode_tlx, get_num_splits
-from bench_amd_pa_decode import build_inputs, ref_decode
+# Canonical kernel now lives one level up in tutorials/; the input builder and
+# dense reference are exported from that same module.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from amd_pa_decode import pa_decode_tlx, get_num_splits, build_inputs, ref_decode
 
 
 # --------------------------------------------------------------------------- #
