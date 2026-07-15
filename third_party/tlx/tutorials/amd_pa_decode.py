@@ -1,23 +1,22 @@
-"""AMD CDNA4 paged-attention *decode* kernel written with TLX.
+"""AMD CDNA4 paged-attention decode kernel written with TLX.
 
 Two-phase split-K decode, ported from the algorithm in ROCm/aiter
-``pa_decode_gluon`` but expressed with Triton + TLX low-level primitives:
+``pa_decode_gluon`` but expressed with Triton + TLX low-level primitives.
+Phase 1 (``_pa_decode_partition_kernel``) has each program handle one
+``(sequence, kv_head, split)``: it streams the split's KV pages into LDS with
+``tlx.async_load`` (double-buffered), does ``q @ k^T`` via MFMA, a base-2
+online softmax, then ``p @ v``, and writes a normalized partial output plus a
+base-2 log-sum-exp for that split. Phase 2 (``_pa_decode_reduce_kernel``) is a
+plain ``@triton.jit`` kernel that merges the per-split partials for each output
+``(token, query_head)`` via the standard LSE trick.
 
-* Phase 1 (``_pa_decode_partition_kernel``): each program handles one
-  ``(sequence, kv_head, split)``. It streams the split's KV pages into LDS with
-  ``tlx.async_load`` (double-buffered), does ``q @ k^T`` via MFMA, a base-2
-  online softmax, then ``p @ v``, and writes a normalized partial output plus a
-  log-sum-exp (base 2) for that split.
-* Phase 2 (``_pa_decode_reduce_kernel``): a plain ``@triton.jit`` kernel that
-  merges the per-split partials for each output ``(token, query_head)`` via the
-  standard LSE trick.
+Scope: bf16/fp16 KV cache, GQA, and MTP query_length in 1..4 (causal across the
+query positions). Not covered: FP8, sliding window, ALiBi, sinks, per-token
+quantization. KV cache layout is contiguous
+``[num_blocks, num_kv_heads, PAGE_SIZE, HEAD_DIM]``.
 
-Supported (sign-of-life scope): bf16/fp16 KV, GQA, MTP query_length in 1..4
-(causal across the query positions). Not covered: FP8, sliding window, ALiBi,
-sinks, per-token quantization.
-
-KV cache layout used here (simple, contiguous):
-    key_cache/value_cache: [num_blocks, num_kv_heads, PAGE_SIZE, HEAD_DIM]
+Consumed by the correctness suite (``test_correctness.py``) and the perf script
+(``test_amd_pa_decode_perf.py``).
 """
 
 import torch
