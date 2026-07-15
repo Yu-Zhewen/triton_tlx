@@ -82,7 +82,7 @@ def _pa_decode_partition_kernel(
     q = tl.load(q_ptrs, mask=q_mask, other=0.0)
     q = tl.reshape(q, (M_POW2, HEAD_DIM))
 
-    QK_SCALE = sm_scale * 1.44269504089
+    QK_SCALE = sm_scale * 1.44269504089  # 1/log(2), for exp2-based softmax
     m_qpos = offs_m // GROUP_POW2                          # query position per row
 
     m_i = tl.full([M_POW2], float("-inf"), tl.float32)
