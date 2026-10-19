@@ -305,6 +305,16 @@ CATALOG: tuple[OpSpec, ...] = (
         supports_backward=False,
     ),
     OpSpec(
+        op="flash_attn_mxfp8",
+        arch="gfx1250",
+        variant="wmma_tdm_mxfp8",
+        impl="triton.tlx.ops.kernels.flash_attn_mxfp8.gfx1250:flash_attn_mxfp8",
+        dtypes=_BF16,
+        accepts=lambda d: d.get("HEAD_DIM") == 128 and d.get("N_CTX", 0) % 256 == 0,
+        requires=frozenset(),
+        supports_backward=False,
+    ),
+    OpSpec(
         op="flash_attn_varlen",
         arch="gfx950",
         variant="mfma_interleaved",

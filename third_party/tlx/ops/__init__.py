@@ -539,8 +539,9 @@ def flash_attn_mxfp8(q, k, v, causal=False, sm_scale=None, *, space="full", p_ex
     kernel (non-causal, and causal at sequence lengths divisible by 512)
     computes the probabilities with an approximate exp2 (see
     kernels/flash_attn_mxfp8/gfx950.py), and the two agree to within the
-    quantization error rather than bitwise. Head dim 128 and sequence lengths
-    divisible by 256. Blackwell returns BF16 gradients; gfx950 is forward only.
+    quantization error rather than bitwise. gfx1250 quantizes as Blackwell
+    does and uses exact exp2. Head dim 128 and sequence lengths divisible by
+    256. Blackwell returns BF16 gradients; gfx950 and gfx1250 are forward only.
     ``p_expcast=True`` (Blackwell only) encodes the forward probabilities with
     ExpCast-FP8 instead of exp2 (see kernels/flash_attn_mxfp8/sm100.py).
     """
