@@ -62,9 +62,10 @@ def test_flash_attn_mxfp8_quantizer_matches_blackwell():
         assert torch.equal(data.view(torch.uint8), ref_data.view(torch.uint8))
         assert torch.equal(scale, ref_scale.repeat_interleave(32, 2))
     ref_data, ref_scale = _blackwell_mxfp8(v, 32, 1)
-    assert torch.equal(v8.view(torch.uint8), ref_data.view(torch.uint8))
-    # Per 128-key tile, column d holds its four 32-key blocks' scales.
     z, h, n, d = shape
+    # V's data are transposed per 128-key tile.
+    assert torch.equal(v8.view(torch.uint8), ref_data.view(torch.uint8).reshape(z, h, n // 128, 128, d).transpose(3, 4))
+    # Per 128-key tile, column d holds its four 32-key blocks' scales.
     assert torch.equal(vs, ref_scale.reshape(z, h, n // 128, 4, d).transpose(3, 4))
 
 
